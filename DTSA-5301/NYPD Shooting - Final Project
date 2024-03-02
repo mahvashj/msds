@@ -1,7 +1,7 @@
 ---
 title: "NYPD Shooting Incident Data Report"
 author: "Mahvash Jafarinejad"
-date: "2024-02-14"
+date: "2024-03-02"
 output:
   pdf_document: default
   html_document: default
@@ -154,7 +154,6 @@ A significant source of bias could arise from the over-policing in certain neigh
 ## Conclusion
 
 This conclusion effectively acknowledges the limitations and potential biases inherent in the analysis, emphasizing the importance of contextual understanding and further research. By openly discussing these aspects, the report acknowledges the complexity of interpreting data on sensitive issues such as crime and law enforcement interactions.
-
 
 
 
