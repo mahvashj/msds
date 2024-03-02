@@ -1,0 +1,160 @@
+---
+title: "NYPD Shooting Incident Data Report"
+author: "Mahvash Jafarinejad"
+date: "2024-02-14"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)  # For data manipulation and visualization
+library(lubridate)  # For date and time manipulation
+library(ggplot2)    # For creating visualizations
+library(knitr)      # For knitting documents
+library(dplyr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Introduction
+
+In recent years, the United States has witnessed a significant rise in hate crimes and shootings, fueling a national debate on public safety and law enforcement strategies. Understanding these trends through data analysis is pivotal for developing effective interventions. This report focuses on the New York City Shooting Incidents dataset, aiming to uncover patterns, relationships, and trends within criminal activities. By examining the NYPD Shooting Incident data, the goal is to offer insights that will support informed decision-making and policy formulation to combat these issues more effectively.
+
+The analysis will involve the following steps:
+
+1. Data Cleaning and Preparation: Ensuring the dataset is accurate and ready for analysis.
+2. Exploratory Data Analysis: Identifying initial patterns and trends.
+3. Statistical Analysis: Delving deeper into the data to understand the relationships between different variables.
+4. Insight Generation: Drawing conclusions that can guide policy and enforcement strategies.
+
+To conduct this analysis, several R packages will be  utilized: 
+
+* **tidyverse** for data manipulation
+* **lubridate** for handling dates
+* **ggplot2** for visualization
+* **gridExtra** for arranging plots
+* **knitr** for reporting
+
+## Reading the Data
+The data is being read from the publicly available csv file.
+```{r}
+nypd_shooting_data <- 
+  read_csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+
+```
+* The *head* command is used to confirm the successful reading process of the data. Here the desired amount of first rows of the data is being displayed.
+
+```{r}
+head(nypd_shooting_data, 10)
+```
+## Tidying and Transforming the Data
+
+In this part, the columns with long names are renamed to more consumer friendly names. 
+
+### Clarifying long column names
+  * OCCUR_Date -> *Date*
+  * OCCUR_Time -> *Time*
+  * LOC_OF_OCCUR_DESC -> *Location*
+  
+```{r}
+nypd_shooting_data <- nypd_shooting_data %>% 
+  rename(Date = OCCUR_DATE,
+         Time = OCCUR_TIME)
+```
+
+### Checking for missing values
+
+```{r}
+sum(is.na(nypd_shooting_data$Date))
+```
+* There are no missing values in the data set.
+
+* Another important check in a data set is removing the duplicates as shown below:
+
+```{r}
+rows_duplicated <- nypd_shooting_data[duplicated(nypd_shooting_data),]
+nypd_shooting_data <- distinct(nypd_shooting_data)
+nrow(nypd_shooting_data)
+```
+* The number of rows are equal to the rows of the data set as shown when the data set was first read, which shows there are no duplicates values in the data set.
+
+* Checking *column names* for clear view of the *data set* as well as confirming column name changes have been successful. 
+
+```{r}
+colnames(nypd_shooting_data)
+```
+## Analysis and Visualization the dataset based on race 
+
+* The analytics of this data are based on race. The data has been summarized by race, and visualizations of the distribution of incidents across different racial groups are included, for potentially comparing outcomes or frequencies among these groups. 
+* Columns of the data set that indicate race of individuals involved in the incidents were used in this analysis: *PERP_RACE* for the perpetrator's race and *VIC_RACE* for the victim's race
+  
+* As shown here, *library(dplyr)* was used in this analysis.
+
+```{r}
+
+library(dplyr)
+
+# Summarize incidents by perpetrator's race
+incidents_perp_race <- nypd_shooting_data %>%
+  group_by(PERP_RACE) %>%
+  summarise(Incidents = n(), .groups = 'drop')
+
+# Summarize incidents by victim's race
+incidents_vic_race <- nypd_shooting_data %>%
+  group_by(VIC_RACE) %>%
+  summarise(Incidents = n(), .groups = 'drop')
+
+# View the summaries
+print(incidents_perp_race)
+print(incidents_vic_race)
+
+```
+### Visualizing the Distribution of Incidents by Race
+As noted in the course many times, *Visualizations* in this part helps in understanding the distribution of incidents across different racial groups better.
+
+```{r}
+library(ggplot2)
+
+# Plotting incidents by perpetrator's race
+ggplot(incidents_perp_race, aes(x = PERP_RACE, y = Incidents, fill = PERP_RACE)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Incidents by Perpetrator's Race", x = "Perpetrator Race", y = "Number of Incidents")
+
+# Plotting incidents by victim's race
+ggplot(incidents_vic_race, aes(x = VIC_RACE, y = Incidents, fill = VIC_RACE)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Incidents by Victim's Race", x = "Victim Race", y = "Number of Incidents")
+
+```
+```{r}
+library(ggplot2)
+# The data frame is named nypd_shooting_data and it has a column named BORO
+# Here the number of incidents per borough is summarized
+incidents_per_borough <- nypd_shooting_data %>%
+  dplyr::group_by(BORO) %>%
+  dplyr::summarise(Incidents = n())
+
+# Creating the visualization here
+ggplot(incidents_per_borough, aes(x = BORO, y = Incidents, fill = BORO)) +
+  geom_bar(stat = "identity") + # Use geom_col() as an alternative
+  theme_minimal() +
+  labs(title = "Number of NYPD Shooting Incidents per Borough", x = "Borough", y = "Number of Incidents") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Bias: 
+
+In concluding the analysis of the NYPD Shooting Incident Data, it is imperative to acknowledge the potential sources of bias that may have influenced the findings. These biases stem from various factors, including but not limited to, data collection methods, systemic inequalities in law enforcement practices, and the socioeconomic dynamics of the boroughs under study. 
+
+A significant source of bias could arise from the over-policing in certain neighborhoods, which might lead to an inflated number of incidents reported in these areas compared to others. Moreover, the racial breakdown of individuals involved in these incidents could reflect historical and systemic biases within the criminal justice system rather than any inherent propensity towards violence among specific racial groups.Personal biases also play a role in data analysis, as preconceived notions and subjective interpretations can inadvertently influence how data is processed and interpreted.
+
+## Conclusion
+
+This conclusion effectively acknowledges the limitations and potential biases inherent in the analysis, emphasizing the importance of contextual understanding and further research. By openly discussing these aspects, the report acknowledges the complexity of interpreting data on sensitive issues such as crime and law enforcement interactions.
+
+
+
+
