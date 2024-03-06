@@ -1,7 +1,7 @@
 ---
 title: "DTSA 5301 Covid-19 Final Project "
 author: "Mahvash Jafarinejad"
-date: "2024-03-06"
+date: "2024-03-05"
 output:
   html_document:
     df_print: paged
