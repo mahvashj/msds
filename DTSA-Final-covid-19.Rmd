@@ -1,0 +1,487 @@
+---
+title: "DTSA 5301 Covid-19 Final Project "
+author: "Mahvash Jafarinejad"
+date: "2024-03-06"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading packages, include=FALSE}
+
+library(tidyverse)
+library(lubridate)
+
+```
+
+```{r, reading in data, include=FALSE}
+
+confirmed_us <- read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv")
+
+confirmed_global <- read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv")
+
+deaths_us <- read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv")
+
+deaths_global <- read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv")
+
+lookup_table <- read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv")
+```
+
+# The Analysis 
+
+The question of interest in this analysis is twofold, that is where some state in the United States handled the pandemic better than others as it relates to the number of cases and deaths? 
+What factors were contributed to the number of deaths, that is measure as deaths per thousand?
+
+# Data Source and Description 
+
+The data source is from the [COVID-19 Data Repository by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University](https://github.com/CSSEGISandData/COVID-19). 
+It is listed in the README of the Johns Hopkins repository. The data used in this analysis contains both case and deaths information for the US individually and global data. 
+
+# Data Exploration and Cleaning
+
+```{r}
+
+head(confirmed_us)
+```
+
+```{r}
+
+head(confirmed_global)
+```
+
+```{r}
+
+head(confirmed_us)
+```
+
+```{r}
+
+head(deaths_global)
+```
+
+```{r}
+
+head(deaths_us)
+```
+
+```{r}
+
+confirmed_global_clean <- confirmed_global %>% 
+  pivot_longer(cols = -c(`Province/State`, `Country/Region`, Lat, Long),
+               names_to = "date",
+               values_to = "cases") %>% 
+  select(-c(Lat, Long))
+
+head(confirmed_global_clean)
+```
+
+```{r}
+
+deaths_global_clean <- deaths_global %>% 
+  pivot_longer(cols = -c(`Province/State`, `Country/Region`, Lat, Long),
+               names_to = "date",
+               values_to = "deaths") %>% 
+  select(-c(Lat, Long))
+
+
+head(deaths_global_clean)
+```
+
+```{r}
+
+global_combined <- confirmed_global_clean %>% 
+  full_join(deaths_global_clean) %>% 
+  rename(country_region = `Country/Region`,
+         province_state = `Province/State`) %>% 
+  mutate(date = mdy(date))
+
+head(global_combined)
+```
+
+```{r}
+
+summary(global_combined)
+
+```
+
+```{r}
+
+confirmed_us_clean <- confirmed_us %>% 
+  pivot_longer(cols = -(UID:Combined_Key),
+               names_to = "date",
+               values_to = "cases") %>% 
+  select(Admin2:cases) %>% 
+  mutate(date = mdy(date)) %>% 
+  select(-c(Lat, Long_)) %>% 
+  rename(province_state = Province_State,
+         country_region = Country_Region)
+
+head(confirmed_us_clean)
+```
+
+```{r}
+
+deaths_us_clean <- deaths_us %>% 
+  pivot_longer(cols = -(UID:Population),
+               names_to = "date",
+               values_to = "deaths") %>% 
+  select(Admin2:deaths) %>% 
+  mutate(date = mdy(date)) %>% 
+  select(-c(Lat, Long_)) %>% 
+  rename(province_state = Province_State,
+         country_region = Country_Region)
+
+head(deaths_us_clean)
+```
+
+```{r}
+
+us_combined <- confirmed_us_clean %>% 
+  full_join(deaths_us_clean)
+
+head(us_combined)
+```
+
+```{r}
+
+global_combined_2 <- global_combined %>% 
+  unite("Combined_Key",
+        c(province_state, country_region),
+        sep = ", ",
+        na.rm = TRUE,
+        remove = FALSE) 
+
+head(global_combined_2)
+```
+
+```{r}
+
+lookup_table_clean <- lookup_table %>% 
+  select(-c(Lat, Long_, Combined_Key, code3, iso2, iso3, Admin2)) %>% 
+  rename(province_state = Province_State,
+         country_region = Country_Region)
+
+head(lookup_table_clean)
+
+```
+
+```{r}
+
+global_combined_3 <- global_combined_2 %>% 
+  left_join(lookup_table_clean, by = c("province_state", "country_region")) %>% 
+  select(-c(UID, FIPS)) %>% 
+  select(province_state, country_region, date, cases, deaths, Population, Combined_Key)
+
+head(global_combined_3)
+```
+
+# Analysis and Visualization 
+
+```{r}
+
+us_by_state <- us_combined %>% 
+  group_by(province_state, country_region, date) %>% 
+  summarize(cases = sum(cases),
+            deaths = sum(deaths),
+            Population = sum(Population)) %>%
+  mutate(deaths_per_million = deaths * 1000000 / Population) %>%
+  select(province_state, country_region, date, cases, deaths, deaths_per_million, Population) %>%
+  ungroup()
+
+head(us_by_state)
+```
+
+```{r}
+
+
+us_totals <-  us_by_state %>% 
+  group_by(country_region, date) %>% 
+  summarise(cases = sum(cases),
+            deaths = sum(deaths),
+            Population = sum(Population)) %>% 
+  mutate(deaths_per_million = deaths * 1000000 / Population) %>% 
+  select(country_region, date, cases, deaths, deaths_per_million, Population) %>% ungroup()
+
+head(us_totals)
+```
+
+```{r}
+
+tail(us_totals)
+```
+
+```{r}
+
+us_totals %>% 
+  ggplot(aes(x = date, y = cases)) + 
+  geom_line(aes(color = "cases")) + 
+  geom_point(aes(color = "cases")) + 
+  geom_line(aes(y = deaths, color = "deaths")) + 
+  geom_point(aes(y = deaths, color = "deaths")) + 
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = "COVID19 in the United States", y = NULL)
+
+
+
+```
+
+```{r}
+
+state_1 = "California"
+
+state_2 = "Washington"
+
+us_by_state %>% 
+  filter(province_state == state_1) %>%
+  ggplot(aes(x = date, y = cases)) + 
+  geom_line(aes(color = "cases")) + 
+  geom_point(aes(color = "cases")) + 
+  geom_line(aes(y = deaths, color = "deaths")) + 
+  geom_point(aes(y = deaths, color = "deaths")) + 
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = str_c("COVID19 in ", state_1), y = NULL)
+
+
+```
+
+```{r}
+
+us_by_state %>% 
+  filter(province_state == state_2) %>%
+  ggplot(aes(x = date, y = cases)) + 
+  geom_line(aes(color = "cases")) + 
+  geom_point(aes(color = "cases")) + 
+  geom_line(aes(y = deaths, color = "deaths")) + 
+  geom_point(aes(y = deaths, color = "deaths")) + 
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = str_c("COVID19 in ", state_2), y = NULL)
+
+```
+
+```{r}
+
+max(us_totals$deaths)
+```
+
+```{r}
+
+us_by_state_2 <- us_by_state %>% 
+  mutate(new_cases = cases - lag(cases),
+         new_deaths = deaths - lag(deaths))
+
+
+```
+
+```{r}
+
+us_totals_2 <-  us_totals %>%
+  mutate(new_cases = cases - lag(cases),
+         new_deaths = deaths - lag(deaths))
+
+tail(us_totals_2 %>% select(new_cases, new_deaths, everything()))
+```
+
+Looking into the data, it is interesting that the number of new deaths on June 12th, 2022 is negative. 
+Could it be because of some error in the data collection?
+
+```{r}
+
+us_totals_2 %>% 
+  ggplot(aes(x= date, y = new_cases)) + 
+  geom_line(aes(color = "new_cases")) + 
+  geom_point(aes(color = "new_cases")) + 
+  geom_line(aes(y = new_deaths, color = "new_deaths")) + 
+  geom_point(aes(y = new_deaths, color = "new_deaths")) + 
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) + 
+  labs(title = "COVID 19 in the United States", y = NULL)
+```
+
+Visualization shown seems to provide a bit more insight into the trajectory of cases. 
+As new variants were being introduced every few months, the spike in early 2022 could very much related to the Omicron variant.
+
+```{r}
+
+us_by_state_2 %>% 
+  filter(province_state == state_1) %>%
+  ggplot(aes(x = date, y = new_cases)) + 
+  geom_line(aes(color = "new_cases")) + 
+  geom_point(aes(color = "new_cases")) + 
+  geom_line(aes(y = new_deaths, color = "new_deaths")) + 
+  geom_point(aes(y = new_deaths, color = "new_deaths")) + 
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = str_c("COVID19 in ", state_1), y = NULL)
+
+```
+
+```{r}
+
+us_by_state_2 %>% 
+  filter(province_state == state_2) %>%
+  ggplot(aes(x = date, y = new_cases)) + 
+  geom_line(aes(color = "new_cases")) + 
+  geom_point(aes(color = "new_cases")) + 
+  geom_line(aes(y = new_deaths, color = "new_deaths")) + 
+  geom_point(aes(y = new_deaths, color = "new_deaths")) + 
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = str_c("COVID19 in ", state_2), y = NULL)
+
+```
+
+```{r}
+
+us_state_totals <- us_by_state_2 %>% 
+  group_by(province_state) %>% 
+  summarise(deaths = max(deaths), 
+            cases = max(cases),
+            population_ = max(Population),
+            cases_per_thousand = 1000 * cases / population_,
+            deaths_per_thousand = 1000 * deaths / population_)
+
+head(us_state_totals)
+```
+
+```{r}
+
+us_state_totals %>% 
+  slice_min(deaths_per_thousand, n = 10)
+```
+
+The table shown above is interesting, but it doesn't address the fact that many places with a small number of deaths and/or cases are also places with much smaller populations. 
+
+To better measure how well places are doing could be to measure cases and deaths as a proportion of the overall population of that area (`province_state`) as opposed to cases or deaths per thousand.
+
+```{r}
+
+us_state_totals %>% 
+  slice_max(deaths_per_thousand, n = 10)
+
+```
+
+Since Grand Princess has a population of 0, it has been filtered out.
+
+```{r}
+
+us_state_totals %>% 
+  slice_max(deaths_per_thousand, n = 10) %>% 
+  filter(population_ > 0)
+```
+
+```{r}
+
+us_state_totals %>% 
+ggplot(aes(x = province_state, y = deaths)) + 
+   geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "COVID19 Deaths by State")
+
+```
+
+```{r}
+
+
+us_state_totals %>% 
+ggplot(aes(x = province_state, y = cases)) + 
+   geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "Number of COVID19 Cases by State")
+```
+
+The bar charts shared above, somewhat confirm what was shown in the previous visualizations; and it is the number of deaths does seem to follow a similar trend as the number of cases. That being noted, in general, states with the highest number of cases also had the highest number of deaths. 
+More analysis could be done to explore this hypothesis further, but it is outside the scope of this project.
+
+# Modeling
+
+In the visualizations, 0 values are kept intentionally, but this will lead to a problem. 
+
+Therefore, a data set was created that filters those observations out for modeling purposes. 
+
+Given more time, it might be prudent to further investigate observations with 0 values, especially those with 0 values for population (like Grand Princess, which showed a population of 0, but had 3 deaths).
+
+```{r}
+
+us_state_totals_modeling <- us_state_totals %>% 
+  filter(population_ > 0)
+```
+
+```{r}
+
+lecture_model <- lm(deaths_per_thousand ~ cases_per_thousand, data = us_state_totals_modeling)
+
+summary(lecture_model)
+```
+
+```{r}
+
+us_state_totals_modeling_w_preds <- us_state_totals_modeling %>% 
+  mutate(pred = predict(lecture_model))
+
+head(us_state_totals_modeling_w_preds)
+```
+
+```{r}
+
+us_state_totals_modeling_w_preds %>% 
+  ggplot() +
+  geom_point(aes(x = cases_per_thousand, y = deaths_per_thousand), color = "blue") +
+  geom_point(aes(x = cases_per_thousand, y = pred), color = "red")
+
+```
+
+Looking to improve the model by adding variables/features.
+
+```{r}
+
+second_model <- lm(deaths_per_thousand ~ population_ + cases_per_thousand, data = us_state_totals_modeling)
+
+summary(second_model)
+```
+
+```{r}
+
+us_state_totals_modeling_w_second_preds <- us_state_totals_modeling %>% 
+  mutate(pred_2 = predict(second_model))
+
+head(us_state_totals_modeling_w_second_preds)
+```
+
+```{r}
+
+us_state_totals_modeling_w_second_preds %>% 
+  ggplot() +
+  geom_point(aes(x = cases_per_thousand, y = deaths_per_thousand), color = "blue") +
+  geom_point(aes(x = cases_per_thousand, y = pred_2), color = "red")
+
+
+```
+
+Not much improvement is being seen here as expected from the model summary showing that `population_` is not a statistically significant contributor to the model. 
+
+Given more time, dataset could be explored more for features that might explain the changes in \`deaths_per_thousand.
+
+# Possible Sources of Bias and Conclusion  
+
+In conclusion, in this analysis some of the differences in the number of COVID19 cases and death by both country and state were explored.
+
+Deeper dive was taken into differences between states and for this particular analysis two states, my home state of California and some family member's home state of Washington were looked into. 
+
+It could be seen that some states handled the pandemic better than others in terms of number of cases and deaths normalized by population.
+
+However, it is important to note that there are possible sources of bias. For example, one possible source that has received media attention is the way in which deaths are reported. Some coroners in some areas may report and attribute a COVID19 death to something other than COVID19 such as pneumonia or upper respiratory illness or multi- organ failure in an effort to decrease the visibility into the actual impact of COVID19 on that particular area.
+
+Another possible source of bias is in the number of cases variable. There are potentially many un-diagnosed or asymptomatic cases that likely were not reported in any given area. It is unclear what the prevalence of this might have been so it would be quite difficult to eliminate this source of bias.
